@@ -1,0 +1,31 @@
+{
+  "name": "proptech-lotes-peru",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plataforma comparador de lotes y terrenos en Perú",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd apps/api && npm run start:dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "cd apps/api && npm run build",
+    "build:web": "cd apps/web && npm run build",
+    "db:generate": "cd packages/db && npx prisma generate",
+    "db:migrate": "cd packages/db && npx prisma migrate dev",
+    "db:migrate:prod": "cd packages/db && npx prisma migrate deploy",
+    "db:seed": "cd packages/db && npx ts-node src/seed.ts",
+    "db:studio": "cd packages/db && npx prisma studio",
+    "db:reset": "cd packages/db && npx prisma migrate reset --force",
+    "install:all": "npm install && cd packages/db && npm install && cd ../../apps/api && npm install && cd ../web && npm install",
+    "lint": "cd apps/api && npm run lint && cd ../web && npm run lint",
+    "test": "cd apps/api && npm run test",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "setup": "npm run install:all && npm run db:generate && npm run db:migrate && npm run db:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}

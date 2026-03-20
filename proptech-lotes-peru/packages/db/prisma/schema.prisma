@@ -1,0 +1,425 @@
+// Prisma Schema - PropTech Lotes Perú
+// =====================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========== ENUMS ===========
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum LegalStatus {
+  TITULO_MATRIZ
+  INDEPENDIZACION
+  INSCRITO_SUNARP
+  HABILITACION_URBANA
+  EN_TRAMITE
+  SIN_DOCUMENTOS
+}
+
+enum LeadStatus {
+  NUEVO
+  CONTACTADO
+  CALIFICADO
+  VISITA
+  CERRADO
+  PERDIDO
+}
+
+enum LeadPaymentMethod {
+  CONTADO
+  CUOTAS
+  MIXTO
+}
+
+enum LeadTimeline {
+  INMEDIATO
+  UN_MES
+  TRES_MESES
+  SEIS_MESES
+  MAS_DE_SEIS
+}
+
+enum ReviewType {
+  COMPRE
+  VISITE
+  INTERESADO
+}
+
+enum ReviewStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+enum AccessType {
+  PISTA_ASFALTADA
+  PISTA_AFIRMADA
+  TROCHA
+  MIXTO
+}
+
+enum RoutingType {
+  EMAIL
+  WEBHOOK
+  WHATSAPP
+}
+
+enum LotStatus {
+  DISPONIBLE
+  RESERVADO
+  VENDIDO
+}
+
+// =========== MODELS ===========
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Developer {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  ruc         String? @unique
+  description String? @db.Text
+  logoUrl     String? @map("logo_url")
+  website     String?
+  phone       String?
+  email       String?
+  address     String?
+  yearsActive Int?    @map("years_active")
+  isVerified  Boolean @default(false) @map("is_verified")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  projects Project[]
+
+  @@map("developers")
+}
+
+model City {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  region    String?
+  lat       Float?
+  lng       Float?
+  isActive  Boolean @default(true) @map("is_active")
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description") @db.Text
+  seoContent     String? @map("seo_content") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  zones    Zone[]
+  projects Project[]
+
+  @@map("cities")
+}
+
+model Zone {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  cityId    String  @map("city_id")
+  lat       Float?
+  lng       Float?
+  isActive  Boolean @default(true) @map("is_active")
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description") @db.Text
+  seoContent     String? @map("seo_content") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  city     City      @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  projects Project[]
+
+  @@map("zones")
+}
+
+model Project {
+  id          String @id @default(cuid())
+  name        String
+  slug        String @unique
+  developerId String @map("developer_id")
+  cityId      String @map("city_id")
+  zoneId      String @map("zone_id")
+
+  // Pricing
+  minPrice       Float  @map("min_price")
+  maxPrice       Float  @map("max_price")
+  priceM2Min     Float? @map("price_m2_min")
+  priceM2Max     Float? @map("price_m2_max")
+  downPaymentMin Float? @map("down_payment_min")
+  monthlyPaymentEst Float? @map("monthly_payment_est")
+  termMonthsEst  Int?   @map("term_months_est")
+
+  // Lot sizes
+  lotSizeMin Float? @map("lot_size_min")
+  lotSizeMax Float? @map("lot_size_max")
+  totalLots  Int?   @map("total_lots")
+
+  // Location
+  lat                    Float?
+  lng                    Float?
+  addressText            String? @map("address_text")
+  accessType             AccessType? @map("access_type")
+  distanceToCityCenterKm Float? @map("distance_to_city_center_km")
+
+  // Description
+  description String? @db.Text
+  shortDescription String? @map("short_description")
+
+  // Legal
+  legalStatus    LegalStatus @default(EN_TRAMITE) @map("legal_status")
+  legalChecklist Json?       @map("legal_checklist") @db.JsonB
+
+  // Services (agua, luz, desague, internet, vigilancia, etc.)
+  services Json? @db.JsonB
+
+  // Safety Score
+  safetyScore          Int?  @default(0) @map("safety_score")
+  safetyScoreBreakdown Json? @map("safety_score_breakdown") @db.JsonB
+
+  // Valorization estimate
+  valorizationEstimate Float? @map("valorization_estimate")
+
+  // Status
+  isFeatured Boolean @default(false) @map("is_featured")
+  isActive   Boolean @default(true) @map("is_active")
+  viewCount  Int     @default(0) @map("view_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  developer     Developer      @relation(fields: [developerId], references: [id])
+  city          City           @relation(fields: [cityId], references: [id])
+  zone          Zone           @relation(fields: [zoneId], references: [id])
+  images        ProjectImage[]
+  lots          Lot[]
+  legalDocuments LegalDocument[]
+  leads         Lead[]
+  reviews       Review[]
+  routingRules  RoutingRule[]
+
+  @@index([cityId])
+  @@index([zoneId])
+  @@index([developerId])
+  @@index([minPrice, maxPrice])
+  @@index([isFeatured])
+  @@index([slug])
+  @@map("projects")
+}
+
+model ProjectImage {
+  id        String  @id @default(cuid())
+  projectId String  @map("project_id")
+  url       String
+  alt       String?
+  order     Int     @default(0)
+  isPrimary Boolean @default(false) @map("is_primary")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_images")
+}
+
+model Lot {
+  id        String    @id @default(cuid())
+  projectId String    @map("project_id")
+  code      String
+  area      Float
+  price     Float
+  priceM2   Float?    @map("price_m2")
+  status    LotStatus @default(DISPONIBLE)
+  block     String?
+  row       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, code])
+  @@map("lots")
+}
+
+model LegalDocument {
+  id        String @id @default(cuid())
+  projectId String @map("project_id")
+  name      String
+  url       String
+  type      String // SUNARP, TITULO, PLANO, etc.
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("legal_documents")
+}
+
+model Lead {
+  id        String @id @default(cuid())
+  projectId String? @map("project_id")
+
+  // Contact info
+  name      String
+  phone     String
+  email     String?
+  
+  // Interest
+  budget        Float?
+  cityInterest  String? @map("city_interest")
+  paymentMethod LeadPaymentMethod? @map("payment_method")
+  timeline      LeadTimeline?
+  comment       String? @db.Text
+  
+  // Status
+  status    LeadStatus @default(NUEVO)
+  
+  // Tracking
+  utmSource   String? @map("utm_source")
+  utmMedium   String? @map("utm_medium")
+  utmCampaign String? @map("utm_campaign")
+  source      String? // web, whatsapp, telefono
+  pageUrl     String? @map("page_url")
+  
+  // Consent
+  consentGiven Boolean @default(false) @map("consent_given")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project   Project?    @relation(fields: [projectId], references: [id])
+  events    LeadEvent[]
+
+  @@index([status])
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+model LeadEvent {
+  id     String @id @default(cuid())
+  leadId String @map("lead_id")
+  type   String // NOTE, STATUS_CHANGE, EMAIL_SENT, WHATSAPP_SENT
+  data   Json?  @db.JsonB
+  note   String? @db.Text
+  
+  createdBy String? @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("lead_events")
+}
+
+model RoutingRule {
+  id        String  @id @default(cuid())
+  projectId String? @map("project_id")
+  developerId String? @map("developer_id_ref") // not FK to avoid circular
+  
+  type      RoutingType
+  target    String // email, webhook url, or phone number
+  isActive  Boolean @default(true) @map("is_active")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("routing_rules")
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  projectId String       @map("project_id")
+  
+  authorName String      @map("author_name")
+  authorEmail String?    @map("author_email")
+  type       ReviewType
+  rating     Int         // 1-5
+  title      String?
+  comment    String      @db.Text
+  status     ReviewStatus @default(PENDIENTE)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@map("reviews")
+}
+
+model SeoPage {
+  id        String @id @default(cuid())
+  path      String @unique // /terrenos/lima
+  title     String
+  metaDescription String? @map("meta_description") @db.Text
+  content   String? @db.Text
+  faqs      Json?   @db.JsonB
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("seo_pages")
+}
+
+model AnalyticsEvent {
+  id        String @id @default(cuid())
+  eventName String @map("event_name")
+  data      Json?  @db.JsonB
+  sessionId String? @map("session_id")
+  userId    String? @map("user_id")
+  pageUrl   String? @map("page_url")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventName])
+  @@index([createdAt])
+  @@map("analytics_events")
+}

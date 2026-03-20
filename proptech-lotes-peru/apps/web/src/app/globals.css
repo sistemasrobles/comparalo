@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #0098dc;
+    --color-accent: #ff8c42;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-white text-slate-800 font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-slate-900;
+  }
+
+  ::selection {
+    @apply bg-primary-100 text-primary-900;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm shadow-sm hover:shadow;
+  }
+
+  .btn-secondary {
+    @apply bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-medium py-2.5 px-5 rounded-lg border border-slate-200 transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm hover:border-slate-300;
+  }
+
+  .btn-ghost {
+    @apply text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium py-2 px-4 rounded-lg transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm;
+  }
+
+  .btn-accent {
+    @apply bg-accent-500 hover:bg-accent-600 active:bg-accent-700 text-white font-medium py-2.5 px-5 rounded-lg transition-all duration-150 inline-flex items-center justify-center gap-2 text-sm shadow-sm;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200/80 shadow-card transition-all duration-200;
+  }
+
+  .card-interactive {
+    @apply card hover:shadow-card-hover hover:border-slate-300/80 cursor-pointer;
+  }
+
+  .card-elevated {
+    @apply bg-white rounded-2xl shadow-elevated border-0;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all duration-150;
+  }
+
+  .select-field {
+    @apply input-field appearance-none bg-no-repeat bg-[right_0.75rem_center] bg-[length:1rem] pr-10;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium tracking-wide;
+  }
+
+  .badge-green { @apply bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/10; }
+  .badge-yellow { @apply bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/10; }
+  .badge-red { @apply bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/10; }
+  .badge-blue { @apply bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-600/10; }
+  .badge-slate { @apply bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/10; }
+
+  /* Score indicator */
+  .score-pill {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums;
+  }
+
+  /* Metric card */
+  .metric-box {
+    @apply p-3 rounded-xl bg-slate-50 border border-slate-100;
+  }
+
+  /* Dividers */
+  .divider {
+    @apply border-t border-slate-100;
+  }
+
+  /* Section */
+  .section-heading {
+    @apply text-2xl sm:text-3xl font-semibold text-slate-900;
+  }
+
+  .section-subheading {
+    @apply text-base text-slate-500 mt-2 max-w-2xl;
+  }
+
+  /* Label */
+  .form-label {
+    @apply block text-sm font-medium text-slate-700 mb-1.5;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-300;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Animations */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Safe area padding for mobile bottom sheets */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
