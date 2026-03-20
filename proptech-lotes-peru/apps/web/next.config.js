@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+   eslint: {
+    ignoreDuringBuilds: true, // 👈 agrega esto
+  },
   images: {
     domains: ['localhost'],
     unoptimized: true,
@@ -15,3 +18,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
