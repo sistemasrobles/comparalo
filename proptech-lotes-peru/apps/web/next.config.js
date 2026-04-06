@@ -8,8 +8,8 @@ const nextConfig = {
     if (!process.env.NEXT_PUBLIC_API_URL) return [];
     return [
       {
-        source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+        source: '/api/((?!db|admin|auth).*)',
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/$1`,
       },
     ];
   },
