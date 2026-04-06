@@ -13,14 +13,13 @@ cloudinary.config({
 export async function POST(req: NextRequest) {
   try {
 
-    export async function POST(req: NextRequest) {
-  console.log('Cloudinary config:', {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'MISSING',
-    api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'MISSING',
-  });
+    console.log('Cloudinary config:', {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'MISSING',
+      api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'MISSING',
+    });
 
-  
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
 
