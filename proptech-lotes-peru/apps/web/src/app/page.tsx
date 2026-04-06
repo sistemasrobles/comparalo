@@ -3,8 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { PROJECTS, getFeaturedProjects, getExclusiveProjects, getAllCities, formatPrice, getLegalStatusLabel, getLegalStatusColor, getProjectsByCategory, type ProjectCategory } from '@/lib/projects-data';
-import { getHeroSlides, type HeroSlide } from '@/lib/admin-store';
+import { formatPrice, getLegalStatusLabel, getLegalStatusColor, type ProjectCategory, type ProjectData } from '@/lib/projects-data';
+import { getAdminProjects, getHeroSlides, type HeroSlide } from '@/lib/admin-store';
+
+function featuredFrom(projects: ProjectData[]) { return projects.filter(p => p.isFeatured && p.isActive); }
+function citiesFrom(projects: ProjectData[]) { return [...new Set(projects.filter(p => p.isActive).map(p => p.city))]; }
+function exclusiveFrom(projects: ProjectData[]) { return projects.filter(p => p.isExclusive && p.isActive); }
+function byCategoryFrom(projects: ProjectData[], cat: ProjectCategory) { return projects.filter(p => p.category === cat && p.isActive); }
 import { PromoBanner } from '@/components/PromoBanner';
 
 /* ── SVG Icons ── */
@@ -110,22 +115,21 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 export default function HomePage() {
-  // Use state for data that may differ between SSR and client (localStorage)
-  const [featured, setFeatured] = useState(() => getFeaturedProjects());
-  const [cities, setCities] = useState(() => getAllCities());
+  const [allProjects, setAllProjects] = useState<ProjectData[]>([]);
+  const [featured, setFeatured] = useState<ProjectData[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
   const [totalLots, setTotalLots] = useState(0);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Load hero slides from admin store
   const [heroSlides, setHeroSlides] = useState(DEFAULT_HERO_SLIDES);
   useEffect(() => {
-    // Re-read from localStorage now that we're on the client
-    const liveFeatured = getFeaturedProjects();
-    const liveCities = getAllCities();
-    const liveLots = PROJECTS.reduce((sum, p) => sum + p.totalLots, 0);
-    setFeatured(liveFeatured);
-    setCities(liveCities);
-    setTotalLots(liveLots);
+    getAdminProjects().then((projects) => {
+      setAllProjects(projects);
+      setFeatured(featuredFrom(projects));
+      setCities(citiesFrom(projects));
+      setTotalLots(projects.filter(p => p.isActive).reduce((sum, p) => sum + p.totalLots, 0));
+    });
     try {
       getHeroSlides().then((stored) => {
         if (stored.length > 0) {
@@ -185,7 +189,7 @@ export default function HomePage() {
           <div className="max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/30 text-xs font-medium text-white mb-5 backdrop-blur-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {PROJECTS.length} proyectos verificados en {cities.length} ciudades
+              {allProjects.filter(p => p.isActive).length} proyectos verificados en {cities.length} ciudades
             </div>
 
             <h1 className="text-3xl md:text-5xl font-bold leading-[1.1] tracking-tight text-white mb-4">
@@ -358,7 +362,7 @@ export default function HomePage() {
             <p className="section-subheading mx-auto">Reserva tu lote o local comercial 100% online con comprobante de pago</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {getExclusiveProjects().map((p) => (
+            {exclusiveFrom(allProjects).map((p) => (
               <Link key={p.slug} href={`/proyecto/${p.slug}`} className="group relative card-interactive overflow-hidden bg-white ring-1 ring-amber-200/60 hover:ring-amber-300">
                 <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
                   <Image src={p.imageUrl} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -405,7 +409,7 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {cities.map((city) => {
-              const cp = PROJECTS.filter((p) => p.city === city);
+              const cp = allProjects.filter((p: ProjectData) => p.city === city && p.isActive);
               const minP = Math.min(...cp.map((p) => p.minPrice));
               return (
                 <Link
@@ -519,7 +523,7 @@ export default function HomePage() {
           badgeLabel: 'Comercial',
         },
       ]).map((cat) => {
-        const items = getProjectsByCategory(cat.category);
+        const items = byCategoryFrom(allProjects, cat.category);
         if (items.length === 0) return null;
         return (
           <section key={cat.category} className="py-14 md:py-18 border-t border-slate-100">
