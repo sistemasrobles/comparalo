@@ -87,8 +87,8 @@ export default function LayoutReviewEditor({
   );
 
   /* ── helpers de refresh ── */
-  const refreshLayout = useCallback(() => {
-    const updated = getGeneratedLayout(projectId);
+  const refreshLayout = useCallback(async () => {
+    const updated = await getGeneratedLayout(projectId);
     if (updated) onLayoutUpdate(updated);
   }, [projectId, onLayoutUpdate]);
 
@@ -118,14 +118,12 @@ export default function LayoutReviewEditor({
   }, [editingBlockName, projectId, refreshLayout]);
 
   /* ── Guardar reasignación de lote ── */
-  const handleSaveLotAssign = useCallback(() => {
+  const handleSaveLotAssign = useCallback(async () => {
     if (!editingLot) return;
-    reassignGeneratedLot(
+    await reassignGeneratedLot(
       projectId,
-      editingLot.blockId,
       editingLot.genLotId,
-      editingLot.newLotId || null,
-      editingLot.newLabel
+      editingLot.newLotId || ''
     );
     setEditingLot(null);
     refreshLayout();
@@ -317,7 +315,8 @@ export default function LayoutReviewEditor({
 ───────────────────────────────────────────── */
 function BlockRow({
   block,
-  lots,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  lots: _lots,
   lotById,
   isExpanded,
   onToggle,

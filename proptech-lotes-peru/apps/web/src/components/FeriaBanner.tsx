@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { getFeriaConfig, type FeriaConfig } from '@/lib/admin-store';
 
-const FERIA_KEY = 'peruinversion_admin_feria';
-
 // ── Paletas de color por tema ─────────────────────────────────────────────
 const THEMES: Record<FeriaConfig['theme'], string> = {
   orange: 'bg-gradient-to-r from-amber-600 via-orange-500 to-red-500',
@@ -53,13 +51,7 @@ export function FeriaBanner() {
   const [cfg, setCfg] = useState<FeriaConfig | null>(null);
 
   useEffect(() => {
-    const load = () => setCfg(getFeriaConfig());
-    load();
-    const handler = (e: StorageEvent) => {
-      if (e.key === FERIA_KEY || e.key === null) load();
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    getFeriaConfig().then(setCfg);
   }, []);
 
   const endMs = cfg ? new Date(cfg.endDate).getTime() : 0;

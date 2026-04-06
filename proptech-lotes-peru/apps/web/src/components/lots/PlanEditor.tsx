@@ -96,9 +96,11 @@ export default function PlanEditor({ project, onUpdate, showToast }: PlanEditorP
 
   // Refresh from store
   const refresh = useCallback(() => {
-    const updated = getAdminProjects().find((p) => p.id === project.id);
-    setPlanData(updated?.planData);
-    onUpdate();
+    getAdminProjects().then((projects) => {
+      const updated = projects.find((p) => p.id === project.id);
+      setPlanData(updated?.planData);
+      onUpdate();
+    });
   }, [project.id, onUpdate]);
 
   /* ── Image upload ── */
@@ -125,10 +127,11 @@ export default function PlanEditor({ project, onUpdate, showToast }: PlanEditorP
 
   const handleRemoveImage = () => {
     if (!confirm('¿Eliminar la imagen del plano y todos los bloques?')) return;
-    removePlanImage(project.id);
-    refresh();
-    setSelectedBlockId(null);
-    showToast('Plano eliminado');
+    removePlanImage(project.id).then(() => {
+      refresh();
+      setSelectedBlockId(null);
+      showToast('Plano eliminado');
+    });
   };
 
   /* ── Mouse → percentage coordinates ── */
@@ -184,28 +187,25 @@ export default function PlanEditor({ project, onUpdate, showToast }: PlanEditorP
       if (w > 2 && h > 2) {
         // Find next unassigned manzana
         const nextMz = manzanas.find((mz) => !assignedManzanas.has(mz)) || `MZ${planData.blocks.length + 1}`;
-        const created = addBlockShape(project.id, {
+        addBlockShape(project.id, {
           blockName: nextMz,
           x, y, width: w, height: h,
-        });
-        if (created) {
+        }).then((created) => {
           refresh();
           setSelectedBlockId(created.id);
           showToast(`Bloque "${nextMz}" creado`);
-        }
+        });
       }
     } else if (dragState.type === 'move' && dragState.blockId) {
       updateBlockShape(project.id, dragState.blockId, {
         x: dragState.currentX,
         y: dragState.currentY,
-      });
-      refresh();
+      }).then(() => refresh());
     } else if (dragState.type === 'resize' && dragState.blockId) {
       updateBlockShape(project.id, dragState.blockId, {
         width: dragState.currentX,
         height: dragState.currentY,
-      });
-      refresh();
+      }).then(() => refresh());
     }
 
     setDragState(null);
@@ -229,19 +229,21 @@ export default function PlanEditor({ project, onUpdate, showToast }: PlanEditorP
 
   const handleDeleteBlock = (blockId: string) => {
     if (!confirm('¿Eliminar este bloque de manzana?')) return;
-    deleteBlockShape(project.id, blockId);
-    if (selectedBlockId === blockId) setSelectedBlockId(null);
-    refresh();
-    showToast('Bloque eliminado');
+    deleteBlockShape(project.id, blockId).then(() => {
+      if (selectedBlockId === blockId) setSelectedBlockId(null);
+      refresh();
+      showToast('Bloque eliminado');
+    });
   };
 
   const handleRenameBlock = (blockId: string) => {
     if (!blockNameInput.trim()) return;
-    updateBlockShape(project.id, blockId, { blockName: blockNameInput.trim() });
-    setEditingBlock(null);
-    setBlockNameInput('');
-    refresh();
-    showToast('Bloque renombrado');
+    updateBlockShape(project.id, blockId, { blockName: blockNameInput.trim() }).then(() => {
+      setEditingBlock(null);
+      setBlockNameInput('');
+      refresh();
+      showToast('Bloque renombrado');
+    });
   };
 
   /* ── Get visual block position (accounts for drag) ── */

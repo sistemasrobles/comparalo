@@ -83,7 +83,7 @@ export default function PlanManualEditor({ project, onUpdate, showToast }: PlanM
 
   // ── Reload shapes from store ──
   const reload = useCallback(() => {
-    setShapes(getLotShapes(project.id));
+    getLotShapes(project.id).then(setShapes);
   }, [project.id]);
 
   useEffect(() => { reload(); }, [reload]);

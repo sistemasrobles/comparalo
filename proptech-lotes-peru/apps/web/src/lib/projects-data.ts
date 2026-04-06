@@ -211,6 +211,8 @@ export interface ProjectData {
   amenities?: string[];
   lots?: LotData[];
   planData?: PlanData;
+  lotShapes?: LotShape[];
+  generatedLayout?: GeneratedLayout;
   /** Visualizaciones del proyecto en los últimos 30 días (valor manual). */
   views30d?: number;
 }

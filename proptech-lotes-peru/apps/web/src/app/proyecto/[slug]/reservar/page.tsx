@@ -46,16 +46,18 @@ function ReservarPage() {
   // It is only set to the real value inside useEffect (client-only), after hydration.
   const [currency, setCurrency] = useState<'PEN' | 'USD'>('PEN');
   useEffect(() => {
-    const adminProject = getAdminProjects().find((p) => p.slug === slug);
-    if (adminProject) {
-      setProject(adminProject);
-      setCurrency(adminProject.currency ?? 'PEN');
-    } else {
-      // Even if no admin override, sync currency from static project
-      const staticProject = getProjectBySlug(slug);
-      if (staticProject?.currency) setCurrency(staticProject.currency);
-    }
-    setMounted(true);
+    getAdminProjects().then((projects) => {
+      const adminProject = projects.find((p) => p.slug === slug);
+      if (adminProject) {
+        setProject(adminProject);
+        setCurrency(adminProject.currency ?? 'PEN');
+      } else {
+        // Even if no admin override, sync currency from static project
+        const staticProject = getProjectBySlug(slug);
+        if (staticProject?.currency) setCurrency(staticProject.currency);
+      }
+      setMounted(true);
+    });
   }, [slug]);
   // helper local que ya lleva la moneda del proyecto
   const fmt = (price: number) => formatPrice(price, currency);
@@ -198,42 +200,41 @@ function ReservarPage() {
       return;
     }
     setSubmitting(true);
-    setTimeout(() => {
-      const reservation = createReservation({
-        projectId: project.id,
-        projectName: project.name,
-        lotId: selectedLot.id,
-        lotLabel: selectedLot.label,
-        lotArea: selectedLot.area,
-        lotPrice: selectedLot.price,
-        reservationAmount: project.reservationAmount || 1000,
-        currency,  // ← save project currency so admin sees correct symbol
-        clientName: formData.clientName,
-        clientDni: formData.clientDni,
-        clientEmail: formData.clientEmail,
-        clientPhone: formData.clientPhone,
-        paymentMethod: formData.paymentMethod,
-        purchaseType,
-        voucherImage,
-        // Plan de pago
-        initialPayment,
-        ...(purchaseType === 'financiado'
-          ? {
-              termMonths: selectedTermMonths,
-              monthlyPayment: calcMonthly(selectedLot.price),
-            }
-          : {}),
-        ...(purchaseType === 'contado' && selectedPrize
-          ? {
-              selectedPrize,
-              selectedPrizeLabel: bonusPrizes.find(p => p.id === selectedPrize)?.label,
-            }
-          : {}),
-      });
+    createReservation({
+      projectId: project.id,
+      projectName: project.name,
+      lotId: selectedLot.id,
+      lotLabel: selectedLot.label,
+      lotArea: selectedLot.area,
+      lotPrice: selectedLot.price,
+      reservationAmount: project.reservationAmount || 1000,
+      currency,
+      clientName: formData.clientName,
+      clientDni: formData.clientDni,
+      clientEmail: formData.clientEmail,
+      clientPhone: formData.clientPhone,
+      paymentMethod: formData.paymentMethod,
+      purchaseType,
+      voucherImage,
+      status: 'pendiente',
+      initialPayment,
+      ...(purchaseType === 'financiado'
+        ? {
+            termMonths: selectedTermMonths,
+            monthlyPayment: calcMonthly(selectedLot.price),
+          }
+        : {}),
+      ...(purchaseType === 'contado' && selectedPrize
+        ? {
+            selectedPrize,
+            selectedPrizeLabel: bonusPrizes.find(p => p.id === selectedPrize)?.label,
+          }
+        : {}),
+    }).then((reservation) => {
       setReservationCode(reservation.code);
       setStep('confirmacion');
       setSubmitting(false);
-    }, 1500);
+    });
   };
 
   return (

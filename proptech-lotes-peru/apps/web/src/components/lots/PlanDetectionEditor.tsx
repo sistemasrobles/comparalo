@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import type { ProjectData, PlanData, LotData } from '@/lib/projects-data';
 import {
   getAdminProjects,
@@ -66,7 +66,11 @@ export default function PlanDetectionEditor({ project, onUpdate, showToast }: Pl
   const [planData, setPlanData] = useState<PlanData | undefined>(project.planData);
   const [detecting, setDetecting] = useState(false);
   const [generatingLayout, setGeneratingLayout] = useState(false);
-  const [currentLayout, setCurrentLayout] = useState<GeneratedLayout | null>(() => getGeneratedLayout(project.id));
+  const [currentLayout, setCurrentLayout] = useState<GeneratedLayout | null>(null);
+
+  useEffect(() => {
+    getGeneratedLayout(project.id).then(setCurrentLayout);
+  }, [project.id]);
   const [selectedDetId, setSelectedDetId] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [debugUrl, setDebugUrl] = useState<string | null>(null);
@@ -95,8 +99,11 @@ export default function PlanDetectionEditor({ project, onUpdate, showToast }: Pl
 
   // Refresh from store
   const refresh = useCallback(() => {
-    const updated = getAdminProjects().find((p) => p.id === project.id);
-    setPlanData(updated?.planData);
+    getAdminProjects().then((projects) => {
+      const updated = projects.find((p) => p.id === project.id);
+      setPlanData(updated?.planData);
+    });
+    getGeneratedLayout(project.id).then(setCurrentLayout);
   }, [project.id]);
 
   // Stats
@@ -164,58 +171,62 @@ export default function PlanDetectionEditor({ project, onUpdate, showToast }: Pl
   }, [planData?.imageUrl, config, manzanas, lots, project.id, refresh, onUpdate, showToast]);
 
   /* ── Review actions ── */
-  const handleApprove = useCallback((id: string) => {
-    updateDetection(project.id, id, { reviewStatus: 'approved' });
+  const handleApprove = useCallback(async (id: string) => {
+    await updateDetection(project.id, id, { reviewStatus: 'approved' });
     // Write to LotShape (single source of truth for public view)
-    const det = (getAdminProjects().find((p) => p.id === project.id)?.planData?.detections || []).find((d) => d.id === id);
+    const projects = await getAdminProjects();
+    const det = (projects.find((p) => p.id === project.id)?.planData?.detections || []).find((d) => d.id === id);
     if (det?.matchedLotId) {
-      upsertLotShape(project.id, det.matchedLotId, det.manualPolygon || det.polygon, 'auto-approved');
+      await upsertLotShape(project.id, det.matchedLotId, det.manualPolygon || det.polygon, 'auto-approved');
     }
     refresh();
     showToast('✅ Detección aprobada y publicada en el plano');
   }, [project.id, refresh, showToast]);
 
-  const handleReject = useCallback((id: string) => {
-    updateDetection(project.id, id, { reviewStatus: 'rejected', matchedLotId: null });
+  const handleReject = useCallback(async (id: string) => {
+    await updateDetection(project.id, id, { reviewStatus: 'rejected', matchedLotId: null });
     refresh();
     showToast('🗑️ Detección rechazada');
   }, [project.id, refresh, showToast]);
 
-  const handleReassign = useCallback((detId: string, lotId: string) => {
+  const handleReassign = useCallback(async (detId: string, lotId: string) => {
     if (!lotId) return;
-    updateDetection(project.id, detId, { matchedLotId: lotId, reviewStatus: 'approved' });
+    await updateDetection(project.id, detId, { matchedLotId: lotId, reviewStatus: 'approved' });
     refresh();
     onUpdate();
     showToast('🔗 Lote reasignado');
   }, [project.id, refresh, onUpdate, showToast]);
 
-  const handleDelete = useCallback((id: string) => {
-    deleteDetection(project.id, id);
+  const handleDelete = useCallback(async (id: string) => {
+    await deleteDetection(project.id, id);
     if (selectedDetId === id) setSelectedDetId(null);
     refresh();
     showToast('Polígono eliminado');
   }, [project.id, selectedDetId, refresh, showToast]);
 
-  const handleApproveAll = useCallback(() => {
+  const handleApproveAll = useCallback(async () => {
     const updated = detections.map((d) =>
       d.reviewStatus === 'matched' ? { ...d, reviewStatus: 'approved' as const } : d
     );
-    saveDetections(project.id, updated);
+    await saveDetections(project.id, updated);
     // Write all matched→approved detections to LotShape table
-    updated.filter((d) => d.reviewStatus === 'approved' && d.matchedLotId).forEach((d) => {
-      upsertLotShape(project.id, d.matchedLotId!, d.manualPolygon || d.polygon, 'auto-approved');
-    });
+    for (const d of updated.filter((d) => d.reviewStatus === 'approved' && d.matchedLotId)) {
+      await upsertLotShape(project.id, d.matchedLotId!, d.manualPolygon || d.polygon, 'auto-approved');
+    }
     refresh();
     showToast(`✅ ${updated.filter((d) => d.reviewStatus === 'approved').length} detecciones aprobadas y publicadas`);
   }, [detections, project.id, refresh, showToast]);
 
-  const handleClearAll = useCallback(() => {
+  const handleClearAll = useCallback(async () => {
     if (!window.confirm('¿Eliminar todas las detecciones y polígonos auto-aprobados del plano público?')) return;
-    clearDetections(project.id);
+    await clearDetections(project.id);
     // Preserve manual shapes, remove auto-approved ones
-    const manualShapes = getLotShapes(project.id).filter((s) => s.source === 'manual');
-    clearLotShapes(project.id);
-    manualShapes.forEach((s) => upsertLotShape(project.id, s.lotId, s.polygonPoints, 'manual'));
+    const allShapes = await getLotShapes(project.id);
+    const manualShapes = allShapes.filter((s) => s.source === 'manual');
+    await clearLotShapes(project.id);
+    for (const s of manualShapes) {
+      await upsertLotShape(project.id, s.lotId, s.polygonPoints, 'manual');
+    }
     setSelectedDetId(null);
     refresh();
     onUpdate();
@@ -240,7 +251,7 @@ export default function PlanDetectionEditor({ project, onUpdate, showToast }: Pl
     setGeneratingLayout(true);
     try {
       const layout = generateLayoutFromDetections(project.id, detections, lots);
-      saveGeneratedLayout(layout);
+      await saveGeneratedLayout(project.id, layout);
       setCurrentLayout(layout);
       onUpdate();
       showToast(`✅ Layout generado: ${layout.blocks.length} bloques, ${layout.stats.totalLots} lotes, ${Math.round(layout.stats.matchRate * 100)}% coincidencia`);
@@ -260,7 +271,7 @@ export default function PlanDetectionEditor({ project, onUpdate, showToast }: Pl
     setGeneratingLayout(true);
     try {
       const layout = generateLayoutFromInventoryOnly(project.id, lots);
-      saveGeneratedLayout(layout);
+      await saveGeneratedLayout(project.id, layout);
       setCurrentLayout(layout);
       onUpdate();
       showToast(`✅ Layout generado desde inventario: ${layout.blocks.length} bloques, ${layout.stats.totalLots} lotes`);

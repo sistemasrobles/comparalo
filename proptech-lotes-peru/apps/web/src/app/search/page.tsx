@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getAllCities, filterProjects, formatPrice, getLegalStatusLabel, getLegalStatusColor, getAccessLabel, getLiveProjects, getCategoryLabel } from '@/lib/projects-data';
-import { getAdminProjects } from '@/lib/admin-store';
+import { formatPrice, getLegalStatusLabel, getLegalStatusColor, getAccessLabel, getCategoryLabel } from '@/lib/projects-data';
 import { useAdminProjects } from '@/lib/hooks/useAdminProjects';
 import { saveContactSubmission } from '@/lib/contact-store';
 import { saveFeriaRegistro } from '@/lib/feria-store';
@@ -183,7 +182,12 @@ function FeriaRegistroModal({ onClose }: { onClose: () => void }) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    saveFeriaRegistro(form);
+    saveFeriaRegistro({
+      nombre: form.name,
+      email: form.email,
+      telefono: form.phone,
+      interes: form.interest,
+    });
     setTimeout(() => {
       setLoading(false);
       setDone(true);
@@ -1005,12 +1009,11 @@ function ContactModal({ project, onClose }: { project: ProjectData; onClose: () 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     saveContactSubmission({
-      fullName,
+      name: fullName,
       email,
       phone,
       message,
       projectName: project.name,
-      projectSlug: project.slug,
     });
     setSent(true);
     setTimeout(onClose, 2000);

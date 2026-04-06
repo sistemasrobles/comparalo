@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
 
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,34 +35,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build a unique filename
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    // Build a safe public_id for Cloudinary
     const safeName = file.name
-      .replace(/\.[^.]+$/, '')                // remove extension
+      .replace(/\.[^.]+$/, '')
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')             // slugify
+      .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-')
       .slice(0, 60);
-    const timestamp = Date.now();
-    const filename = `${safeName}-${timestamp}.${ext}`;
+    const publicId = `peruinversion/projects/${safeName}-${Date.now()}`;
 
-    // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'projects');
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
-    // Write file
+    // Upload to Cloudinary via buffer (works on serverless/Vercel)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const filePath = path.join(uploadDir, filename);
-    await writeFile(filePath, buffer);
 
-    // Public URL accessible from the browser
-    const publicUrl = `/uploads/projects/${filename}`;
+    const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { public_id: publicId, resource_type: 'image', overwrite: false },
+        (error, result) => {
+          if (error || !result) return reject(error ?? new Error('Upload failed'));
+          resolve(result as { secure_url: string });
+        }
+      ).end(buffer);
+    });
 
     return NextResponse.json({
-      url: publicUrl,
+      url: uploadResult.secure_url,
       name: file.name,
       size: file.size,
       type: file.type,

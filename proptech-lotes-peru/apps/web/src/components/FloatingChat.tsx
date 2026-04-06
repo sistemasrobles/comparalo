@@ -2,16 +2,13 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
 import { getChatConfig, type ChatConfig } from '@/lib/admin-store';
 import {
   sendVisitorMessage,
   getConversation,
-  CHAT_CONV_KEY,
   type ChatMsg,
 } from '@/lib/chat-store';
 
-const ADMIN_CHAT_KEY = 'peruinversion_admin_chat';
 const SESSION_KEY = 'peruinversion_chat_session';
 
 function getSessionId(): string {
@@ -38,35 +35,27 @@ export function FloatingChat() {
   const [sessionId] = useState(getSessionId);
   const panelRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
 
   // Cargar config del chat
   useEffect(() => {
-    const load = () => setConfig(getChatConfig());
-    load();
-    const handler = (e: StorageEvent) => {
-      if (e.key === ADMIN_CHAT_KEY || e.key === null) load();
+    const load = async () => {
+      const cfg = await getChatConfig();
+      setConfig(cfg);
     };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    load();
   }, []);
 
-  // Polling: leer respuestas del admin desde localStorage
-  const syncMessages = useCallback(() => {
-    const conv = getConversation(sessionId);
+  // Polling: leer respuestas del admin desde Supabase
+  const syncMessages = useCallback(async () => {
+    const conv = await getConversation(sessionId);
     if (conv) setMessages([...conv.messages]);
   }, [sessionId]);
 
   useEffect(() => {
     syncMessages();
-    const handler = (e: StorageEvent) => {
-      if (e.key === CHAT_CONV_KEY || e.key === null) syncMessages();
-    };
-    window.addEventListener('storage', handler);
-    // Polling cada 2s para la misma pestaña (admin responde en misma pestaña)
-    const interval = setInterval(syncMessages, 2000);
+    // Polling cada 3s para ver respuestas del admin
+    const interval = setInterval(syncMessages, 3000);
     return () => {
-      window.removeEventListener('storage', handler);
       clearInterval(interval);
     };
   }, [syncMessages]);
@@ -105,16 +94,14 @@ export function FloatingChat() {
     if (!text || loading) return;
     setLoading(true);
     setInput('');
-    sendVisitorMessage({
-      sessionId,
+    await sendVisitorMessage({
+      existingConversationId: sessionId,
       visitorName: name || 'Visitante',
       visitorEmail: email,
       text,
-      page: pathname || '/',
     });
-    syncMessages();
+    await syncMessages();
     setLoading(false);
-    // Si aún no preguntamos el nombre, marcar para mostrarlo solo si no se llenó
     if (!nameAsked && !name) setNameAsked(true);
   };
 
@@ -217,7 +204,7 @@ export function FloatingChat() {
                   >
                     {msg.text}
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5 mx-1">{timeLabel(msg.createdAt)}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 mx-1">{timeLabel(msg.timestamp)}</p>
                 </div>
               </div>
             ))}

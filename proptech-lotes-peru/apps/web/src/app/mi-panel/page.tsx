@@ -48,18 +48,19 @@ function MiPanelContent() {
     if (stored) {
       try {
         const { code: c, dni: d } = JSON.parse(stored);
-        const r = getReservationByCodeAndDni(c, d);
-        if (r) {
-          setIsAuth(true);
-          setReservation(r);
-          setAllReservations(getReservationsByDni(d));
-          setTimeline(buildTimeline(r));
-        }
+        getReservationByCodeAndDni(c, d).then((r) => {
+          if (r) {
+            setIsAuth(true);
+            setReservation(r);
+            getReservationsByDni(d).then(setAllReservations);
+            setTimeline(buildTimeline(r));
+          }
+        });
       } catch { /* ignore */ }
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedCode = code.trim().toUpperCase();
     const trimmedDni = dni.trim();
@@ -67,14 +68,14 @@ function MiPanelContent() {
       setLoginError('Completa ambos campos');
       return;
     }
-    const found = getReservationByCodeAndDni(trimmedCode, trimmedDni);
+    const found = await getReservationByCodeAndDni(trimmedCode, trimmedDni);
     if (!found) {
       setLoginError('No encontramos una reserva con ese código y DNI');
       return;
     }
     setIsAuth(true);
     setReservation(found);
-    setAllReservations(getReservationsByDni(trimmedDni));
+    setAllReservations(await getReservationsByDni(trimmedDni));
     setTimeline(buildTimeline(found));
     sessionStorage.setItem('buyer_session', JSON.stringify({ code: trimmedCode, dni: trimmedDni }));
     setLoginError('');

@@ -15,25 +15,23 @@ import {
 } from '@/lib/admin-store';
 import { type ProjectData, type LotData, type ProjectCategory, formatPrice } from '@/lib/projects-data';
 import {
-  getAllReservations, updateReservationStatus, getReservationStats,
+  getAllReservations, updateReservationStatus,
   deleteReservation, type Reservation, type ReservationStatus,
 } from '@/lib/reservations-store';
 import { downloadProjectTemplate } from '@/lib/download-template';
 import { parseLotExcel } from '@/lib/lot-import';
 import {
-  getConversations, getConversation, sendAdminReply,
+  getConversations, sendAdminReply,
   markConversationRead, markAllConversationsRead, deleteConversation,
-  getUnreadCount, type Conversation, CHAT_CONV_KEY,
+  getUnreadCount, type Conversation, type ChatMsg,
 } from '@/lib/chat-store';
 import {
   getContactSubmissions, deleteContactSubmission, markContactRead,
   markAllContactRead, getUnreadContactCount, type ContactSubmission,
-  CONTACT_STORE_KEY,
 } from '@/lib/contact-store';
 import {
   getFeriaRegistros, deleteFeriaRegistro, markFeriaRegistroRead,
   markAllFeriaRead, getUnreadFeriaCount, type FeriaRegistro,
-  FERIA_STORE_KEY,
 } from '@/lib/feria-store';
 import PlanDetectionEditor from '@/components/lots/PlanDetectionEditor';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -174,16 +172,16 @@ export default function AdminPage() {
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
 
   // Config state
-  const [config, setConfig] = useState<SiteConfig>(getSiteConfig());
+  const [config, setConfig] = useState<SiteConfig | null>(null);
 
   // Feria banner state
-  const [feriaConfig, setFeriaConfig] = useState<FeriaConfig>(getFeriaConfig());
+  const [feriaConfig, setFeriaConfig] = useState<FeriaConfig | null>(null);
 
   // Ad banners state
   const [adBanners, setAdBanners] = useState<ProjectAdBanner[]>([]);
 
   // Chat flotante state
-  const [chatConfig, setChatConfig] = useState<ChatConfig>(getChatConfig());
+  const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null);
 
   // Conversaciones del chat
   const [chatMessages, setChatMessages] = useState<Conversation[]>([]);
@@ -198,55 +196,33 @@ export default function AdminPage() {
   const [unreadFeriaCount, setUnreadFeriaCount] = useState(0);
 
   useEffect(() => {
-    const loadMessages = () => {
-      setChatMessages(getConversations());
-      setUnreadCount(getUnreadCount());
+    const loadMessages = async () => {
+      setChatMessages(await getConversations());
+      setUnreadCount(await getUnreadCount());
     };
     loadMessages();
-    const handler = (e: StorageEvent) => {
-      if (e.key === CHAT_CONV_KEY || e.key === null) loadMessages();
-    };
-    window.addEventListener('storage', handler);
-    // Polling cada 2s para detectar nuevos mensajes de visitantes
-    const interval = setInterval(loadMessages, 2000);
-    return () => {
-      window.removeEventListener('storage', handler);
-      clearInterval(interval);
-    };
+    const interval = setInterval(loadMessages, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    const loadContacts = () => {
-      setContactSubmissions(getContactSubmissions());
-      setUnreadContactCount(getUnreadContactCount());
+    const loadContacts = async () => {
+      setContactSubmissions(await getContactSubmissions());
+      setUnreadContactCount(await getUnreadContactCount());
     };
     loadContacts();
-    const handler = (e: StorageEvent) => {
-      if (e.key === CONTACT_STORE_KEY || e.key === null) loadContacts();
-    };
-    window.addEventListener('storage', handler);
-    const interval = setInterval(loadContacts, 2000);
-    return () => {
-      window.removeEventListener('storage', handler);
-      clearInterval(interval);
-    };
+    const interval = setInterval(loadContacts, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    const loadFeria = () => {
-      setFeriaRegistros(getFeriaRegistros());
-      setUnreadFeriaCount(getUnreadFeriaCount());
+    const loadFeria = async () => {
+      setFeriaRegistros(await getFeriaRegistros());
+      setUnreadFeriaCount(await getUnreadFeriaCount());
     };
     loadFeria();
-    const handler = (e: StorageEvent) => {
-      if (e.key === FERIA_STORE_KEY || e.key === null) loadFeria();
-    };
-    window.addEventListener('storage', handler);
-    const interval = setInterval(loadFeria, 2000);
-    return () => {
-      window.removeEventListener('storage', handler);
-      clearInterval(interval);
-    };
+    const interval = setInterval(loadFeria, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Auth check
@@ -259,20 +235,23 @@ export default function AdminPage() {
 
   // Load data on auth
   useEffect(() => {
-    if (isAuth) {
-      setProjects(getAdminProjects());
-      setHeroSlides(getHeroSlides());
-      setReservations(getAllReservations());
-      setConfig(getSiteConfig());
-      setFeriaConfig(getFeriaConfig());
-      setAdBanners(getProjectAdBanners());
-    }
+    if (!isAuth) return;
+    (async () => {
+      setProjects(await getAdminProjects());
+      setHeroSlides(await getHeroSlides());
+      setReservations(await getAllReservations());
+      setConfig(await getSiteConfig());
+      setFeriaConfig(await getFeriaConfig());
+      setChatConfig(await getChatConfig());
+      setAdBanners(await getProjectAdBanners());
+    })();
   }, [isAuth]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cfg = getSiteConfig();
-    if (password === cfg.adminPassword) {
+    const cfg = await getSiteConfig();
+    const correctPassword = cfg?.adminPassword ?? 'admin2024';
+    if (password === correctPassword) {
       setIsAuth(true);
       sessionStorage.setItem('admin_auth', 'true');
       setPasswordError('');
@@ -283,9 +262,9 @@ export default function AdminPage() {
 
   const handleLogout = () => { setIsAuth(false); sessionStorage.removeItem('admin_auth'); };
   const showToast = (msg: string) => setToast(msg);
-  const refreshProjects = () => setProjects(getAdminProjects());
-  const refreshSlides = () => setHeroSlides(getHeroSlides());
-  const refreshReservations = () => setReservations(getAllReservations());
+  const refreshProjects = async () => setProjects(await getAdminProjects());
+  const refreshSlides = async () => setHeroSlides(await getHeroSlides());
+  const refreshReservations = async () => setReservations(await getAllReservations());
 
   /* ── LOGIN SCREEN ── */
   if (!isAuth) {
@@ -329,7 +308,13 @@ export default function AdminPage() {
     { id: 'feria-registros', label: 'Feria Registros', icon: I.feriaRegistros, count: unreadFeriaCount, countColor: 'bg-[#0098dc]' },
   ];
 
-  const stats = getReservationStats();
+  const stats = {
+    total: reservations.length,
+    pendientes: reservations.filter((r) => r.status === 'pendiente').length,
+    aprobadas: reservations.filter((r) => r.status === 'aprobada').length,
+    rechazadas: reservations.filter((r) => r.status === 'rechazada').length,
+    totalAmount: reservations.filter((r) => r.status === 'aprobada').reduce((sum, r) => sum + (r.reservationAmount || 0), 0),
+  };
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden">
@@ -354,7 +339,7 @@ export default function AdminPage() {
               {t.icon}
               <span className="flex-1 text-left">{t.label}</span>
               {t.count !== undefined && t.count > 0 && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${(t as any).countColor ?? (tab === t.id ? 'bg-[#0098dc]' : 'bg-slate-400')}`}>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${t.countColor ?? (tab === t.id ? 'bg-[#0098dc]' : 'bg-slate-400')}`}>
                   {t.count}
                 </span>
               )}
@@ -387,10 +372,10 @@ export default function AdminPage() {
             showToast={showToast} stats={stats}
           />
         )}
-        {tab === 'config' && <ConfigTab config={config} setConfig={setConfig} showToast={showToast} />}
-        {tab === 'feria' && <FeriaTab feriaConfig={feriaConfig} setFeriaConfig={setFeriaConfig} showToast={showToast} />}
+        {tab === 'config' && config && <ConfigTab config={config} setConfig={setConfig} showToast={showToast} />}
+        {tab === 'feria' && feriaConfig && <FeriaTab feriaConfig={feriaConfig} setFeriaConfig={setFeriaConfig} showToast={showToast} />}
         {tab === 'adbanners' && <AdBannersTab banners={adBanners} setBanners={setAdBanners} showToast={showToast} />}
-        {tab === 'chat'      && <ChatTab chatConfig={chatConfig} setChatConfig={setChatConfig} showToast={showToast} />}
+        {tab === 'chat'      && chatConfig && <ChatTab chatConfig={chatConfig} setChatConfig={setChatConfig} showToast={showToast} />}
         {tab === 'mensajes'  && <MensajesTab messages={chatMessages} setMessages={setChatMessages} unreadCount={unreadCount} setUnreadCount={setUnreadCount} showToast={showToast} />}
         {tab === 'consultas' && <ConsultasTab submissions={contactSubmissions} setSubmissions={setContactSubmissions} setUnreadCount={setUnreadContactCount} showToast={showToast} />}
         {tab === 'feria-registros' && <FeriaRegistrosTab registros={feriaRegistros} setRegistros={setFeriaRegistros} setUnreadCount={setUnreadFeriaCount} showToast={showToast} />}
@@ -430,30 +415,30 @@ function ProjectsTab({ projects, editingProject, setEditingProject, editingLots,
     return p.name.toLowerCase().includes(s) || p.city.toLowerCase().includes(s) || p.developer.name.toLowerCase().includes(s);
   });
 
-  const handleCreate = () => {
-    const p = createProject({ name: 'Nuevo Proyecto' });
-    refreshProjects();
+  const handleCreate = async () => {
+    const p = await createProject({ name: 'Nuevo Proyecto' });
+    await refreshProjects();
     setEditingProject(p);
     showToast('Proyecto creado');
   };
 
-  const handleDuplicate = (id: string) => {
-    duplicateProject(id);
-    refreshProjects();
+  const handleDuplicate = async (id: string) => {
+    await duplicateProject(id);
+    await refreshProjects();
     showToast('Proyecto duplicado');
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este proyecto permanentemente?')) return;
-    deleteProject(id);
-    refreshProjects();
+    await deleteProject(id);
+    await refreshProjects();
     showToast('Proyecto eliminado');
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!confirm('¿Restaurar todos los proyectos a los datos originales? Se perderán los cambios.')) return;
-    resetProjectsToDefaults();
-    refreshProjects();
+    await resetProjectsToDefaults();
+    await refreshProjects();
     showToast('Proyectos restaurados');
   };
 
@@ -569,8 +554,8 @@ function ProjectEditor({ project, onBack, showToast }: { project: ProjectData; o
   const set = (key: keyof ProjectData, value: ProjectData[keyof ProjectData]) => setForm((prev) => ({ ...prev, [key]: value }));
   const setDev = (key: keyof ProjectData['developer'], value: string) => setForm((prev) => ({ ...prev, developer: { ...prev.developer, [key]: value } }));
 
-  const handleSave = () => {
-    updateProject(form.id, form);
+  const handleSave = async () => {
+    await updateProject(form.id, form);
     showToast('Proyecto guardado');
     onBack();
   };
@@ -787,31 +772,31 @@ function LotsEditor({ project, onBack, showToast, refreshProjects }: { project: 
   const [importResult, setImportResult] = useState<{ lots: LotData[]; errors: string[]; warnings: string[] } | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const refreshLots = () => {
-    const updated = getAdminProjects().find((p) => p.id === project.id);
+  const refreshLots = async () => {
+    const updated = (await getAdminProjects()).find((p) => p.id === project.id);
     setLots(updated?.lots || []);
     refreshProjects();
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const label = `Mz ${nManzana} - Lt ${nLote}`;
-    addLot(project.id, { label, manzana: nManzana, lote: nLote, area: nArea, price: nPrice, status: nStatus });
-    refreshLots();
+    await addLot(project.id, { label, manzana: nManzana, lote: nLote, area: nArea, price: nPrice, status: nStatus });
+    await refreshLots();
     setNewLot(false);
     setNManzana(''); setNLote(1); setNArea(100); setNPrice(30000); setNStatus('disponible');
     showToast('Lote agregado');
   };
 
-  const handleStatusChange = (lotId: string, status: LotData['status']) => {
-    updateLot(project.id, lotId, { status });
-    refreshLots();
+  const handleStatusChange = async (lotId: string, status: LotData['status']) => {
+    await updateLot(project.id, lotId, { status });
+    await refreshLots();
     showToast('Estado actualizado');
   };
 
-  const handleDeleteLot = (lotId: string) => {
+  const handleDeleteLot = async (lotId: string) => {
     if (!confirm('¿Eliminar este lote?')) return;
-    deleteLot(project.id, lotId);
-    refreshLots();
+    await deleteLot(project.id, lotId);
+    await refreshLots();
     showToast('Lote eliminado');
   };
 
@@ -835,17 +820,15 @@ function LotsEditor({ project, onBack, showToast, refreshProjects }: { project: 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleConfirmImport = (mode: 'replace' | 'append') => {
+  const handleConfirmImport = async (mode: 'replace' | 'append') => {
     if (!importResult) return;
     if (mode === 'replace') {
-      // Delete all existing lots first
-      lots.forEach((l) => deleteLot(project.id, l.id));
+      await Promise.all(lots.map((l) => deleteLot(project.id, l.id)));
     }
-    // Add imported lots
-    importResult.lots.forEach((lot) => {
-      addLot(project.id, { label: lot.label, manzana: lot.manzana, lote: lot.lote, fila: lot.fila, area: lot.area, price: lot.price, precioM2: lot.precioM2, status: lot.status });
-    });
-    refreshLots();
+    await Promise.all(importResult.lots.map((lot) =>
+      addLot(project.id, { label: lot.label, manzana: lot.manzana, lote: lot.lote, fila: lot.fila, area: lot.area, price: lot.price, precioM2: lot.precioM2, status: lot.status })
+    ));
+    await refreshLots();
     showToast(`${importResult.lots.length} lotes ${mode === 'replace' ? 'reemplazados' : 'agregados'}`);
     setImportResult(null);
   };
@@ -1043,31 +1026,31 @@ function SliderTab({ slides, editingSlide, setEditingSlide, refreshSlides, showT
     }
   }, [editingSlide]);
 
-  const handleCreate = () => {
-    createHeroSlide({ image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1600&h=900&fit=crop', title: 'Nuevo slide', subtitle: 'Descripción del slide' });
-    refreshSlides();
+  const handleCreate = async () => {
+    await createHeroSlide({ image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1600&h=900&fit=crop', title: 'Nuevo slide', subtitle: 'Descripción del slide' });
+    await refreshSlides();
     showToast('Slide creado');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingSlide) return;
-    updateHeroSlide(editingSlide.id, { image: formImage, title: formTitle, subtitle: formSubtitle });
-    refreshSlides();
+    await updateHeroSlide(editingSlide.id, { image: formImage, title: formTitle, subtitle: formSubtitle });
+    await refreshSlides();
     setEditingSlide(null);
     showToast('Slide guardado');
   };
 
-  const handleDeleteSlide = (id: string) => {
+  const handleDeleteSlide = async (id: string) => {
     if (!confirm('¿Eliminar este slide?')) return;
-    deleteHeroSlide(id);
-    refreshSlides();
+    await deleteHeroSlide(id);
+    await refreshSlides();
     showToast('Slide eliminado');
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!confirm('¿Restaurar slider a los valores originales?')) return;
-    resetHeroToDefaults();
-    refreshSlides();
+    await resetHeroToDefaults();
+    await refreshSlides();
     showToast('Slider restaurado');
   };
 
@@ -1178,7 +1161,7 @@ function ReservasTab({ reservations, filterStatus, setFilterStatus, selectedRes,
   reservations: Reservation[]; filterStatus: ReservationStatus | 'todas'; setFilterStatus: (s: ReservationStatus | 'todas') => void;
   selectedRes: Reservation | null; setSelectedRes: (r: Reservation | null) => void;
   refreshReservations: () => void; showToast: (m: string) => void;
-  stats: ReturnType<typeof getReservationStats>;
+  stats: { total: number; pendientes: number; aprobadas: number; rechazadas: number; totalAmount: number };
 }) {
   const filtered = useMemo(() => {
     let r = [...reservations];
@@ -1193,24 +1176,24 @@ function ReservasTab({ reservations, filterStatus, setFilterStatus, selectedRes,
     return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${map[s]}`}>{s.charAt(0).toUpperCase() + s.slice(1)}</span>;
   };
 
-  const handleApprove = (id: string) => {
-    updateReservationStatus(id, 'aprobada', 'Admin');
-    refreshReservations();
+  const handleApprove = async (id: string) => {
+    await updateReservationStatus(id, 'aprobada', { reviewedBy: 'Admin' });
+    await refreshReservations();
     setSelectedRes(null);
     showToast('Reserva aprobada');
   };
 
-  const handleReject = (id: string) => {
-    updateReservationStatus(id, 'rechazada', 'Admin');
-    refreshReservations();
+  const handleReject = async (id: string) => {
+    await updateReservationStatus(id, 'rechazada', { reviewedBy: 'Admin' });
+    await refreshReservations();
     setSelectedRes(null);
     showToast('Reserva rechazada');
   };
 
-  const handleDeleteRes = (id: string) => {
+  const handleDeleteRes = async (id: string) => {
     if (!confirm('¿Eliminar esta reserva?')) return;
-    deleteReservation(id);
-    refreshReservations();
+    await deleteReservation(id);
+    await refreshReservations();
     setSelectedRes(null);
     showToast('Reserva eliminada');
   };
@@ -1349,8 +1332,8 @@ function ReservasTab({ reservations, filterStatus, setFilterStatus, selectedRes,
 function ConfigTab({ config, setConfig, showToast }: { config: SiteConfig; setConfig: (c: SiteConfig) => void; showToast: (m: string) => void }) {
   const [form, setForm] = useState<SiteConfig>({ ...config });
 
-  const handleSave = () => {
-    const updated = updateSiteConfig(form);
+  const handleSave = async () => {
+    const updated = await updateSiteConfig(form);
     setConfig(updated);
     showToast('Configuración guardada');
   };
@@ -1414,8 +1397,8 @@ function FeriaTab({ feriaConfig, setFeriaConfig, showToast }: {
   // Preview en tiempo real: sincronizar con prop externa
   useEffect(() => { setForm(feriaConfig); }, [feriaConfig]);
 
-  const handleSave = () => {
-    const saved = updateFeriaConfig(form);
+  const handleSave = async () => {
+    const saved = await updateFeriaConfig(form);
     setFeriaConfig(saved);
     showToast('✅ Banner guardado correctamente');
   };
@@ -1550,13 +1533,13 @@ function AdBannersTab({ banners, setBanners, showToast }: {
   const [isNew, setIsNew] = useState(false);
   const [form, setForm] = useState<Omit<ProjectAdBanner, 'id' | 'order'>>(EMPTY_AD);
 
-  const refresh = () => setBanners(getProjectAdBanners());
+  const refresh = async () => setBanners(await getProjectAdBanners());
 
   const openNew = () => { setForm(EMPTY_AD); setIsNew(true); setEditing(null); };
   const openEdit = (b: ProjectAdBanner) => { setForm(b); setEditing(b); setIsNew(false); };
   const closeForm = () => { setEditing(null); setIsNew(false); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.bgImage.trim()) {
       showToast('⚠️ La imagen del banner es requerida');
       return;
@@ -1566,26 +1549,26 @@ function AdBannersTab({ banners, setBanners, showToast }: {
       return;
     }
     if (isNew) {
-      createProjectAdBanner(form);
+      await createProjectAdBanner(form);
       showToast('✅ Banner creado');
     } else if (editing) {
-      updateProjectAdBanner(editing.id, form);
+      await updateProjectAdBanner(editing.id, form);
       showToast('✅ Banner actualizado');
     }
-    refresh();
+    await refresh();
     closeForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este banner?')) return;
-    deleteProjectAdBanner(id);
-    refresh();
+    await deleteProjectAdBanner(id);
+    await refresh();
     showToast('🗑️ Banner eliminado');
   };
 
-  const handleToggle = (b: ProjectAdBanner) => {
-    updateProjectAdBanner(b.id, { active: !b.active });
-    refresh();
+  const handleToggle = async (b: ProjectAdBanner) => {
+    await updateProjectAdBanner(b.id, { active: !b.active });
+    await refresh();
   };
 
   // ── Formulario ──
@@ -1704,8 +1687,8 @@ function ChatTab({ chatConfig, setChatConfig, showToast }: {
 }) {
   const [form, setForm] = useState<ChatConfig>(chatConfig);
 
-  const handleSave = () => {
-    const saved = updateChatConfig(form);
+  const handleSave = async () => {
+    const saved = await updateChatConfig(form);
     setChatConfig(saved);
     showToast('✅ Chat actualizado');
   };
@@ -1848,9 +1831,9 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
   // Refresco periódico mientras está abierta una conversación
   useEffect(() => {
     if (!selected) return;
-    const interval = setInterval(() => {
-      setMessages(getConversations());
-      setUnreadCount(getUnreadCount());
+    const interval = setInterval(async () => {
+      setMessages(await getConversations());
+      setUnreadCount(await getUnreadCount());
     }, 1500);
     return () => clearInterval(interval);
   }, [selected, setMessages, setUnreadCount]);
@@ -1872,25 +1855,24 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
     }
   }, [currentMsgCount]);
 
-  function handleOpen(id: string) {
+  async function handleOpen(id: string) {
     setSelected(id);
-    markConversationRead(id);
-    const updated = getConversations();
-    setMessages(updated);
-    setUnreadCount(getUnreadCount());
+    await markConversationRead(id);
+    setMessages(await getConversations());
+    setUnreadCount(await getUnreadCount());
   }
 
-  function handleMarkAllRead() {
-    markAllConversationsRead();
-    setMessages(getConversations());
+  async function handleMarkAllRead() {
+    await markAllConversationsRead();
+    setMessages(await getConversations());
     setUnreadCount(0);
     showToast('Todas las conversaciones marcadas como leídas');
   }
 
-  function handleDelete(id: string) {
-    deleteConversation(id);
-    setMessages(getConversations());
-    setUnreadCount(getUnreadCount());
+  async function handleDelete(id: string) {
+    await deleteConversation(id);
+    setMessages(await getConversations());
+    setUnreadCount(await getUnreadCount());
     if (selected === id) setSelected(null);
     showToast('Conversación eliminada');
   }
@@ -1898,9 +1880,9 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
   async function handleSendReply() {
     if (!reply.trim() || !selected || sending) return;
     setSending(true);
-    sendAdminReply(selected, reply.trim());
+    await sendAdminReply(selected, reply.trim());
     setReply('');
-    setMessages(getConversations());
+    setMessages(await getConversations());
     setSending(false);
   }
 
@@ -1968,11 +1950,11 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {/* Dot no leído */}
-                    {!conv.readByAdmin && (
+                    {!conv.isRead && (
                       <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 mt-1" />
                     )}
                     <div className="min-w-0">
-                      <p className={`text-sm truncate ${!conv.readByAdmin ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`}>
+                      <p className={`text-sm truncate ${!conv.isRead ? 'font-bold text-slate-800' : 'font-medium text-slate-700'}`}>
                         {conv.visitorName}
                       </p>
                       <p className="text-[11px] text-slate-400 truncate">
@@ -2010,7 +1992,7 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
                   <p className="font-bold text-slate-800 text-sm">{activeConv.visitorName}</p>
                   <p className="text-[11px] text-slate-400">
                     {activeConv.visitorEmail && <a href={`mailto:${activeConv.visitorEmail}`} className="text-[#0098dc] hover:underline mr-2">{activeConv.visitorEmail}</a>}
-                    {activeConv.page}
+                    {activeConv.projectName}
                   </p>
                 </div>
               </div>
@@ -2024,7 +2006,7 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
 
             {/* Hilo de mensajes */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-slate-50">
-              {activeConv.messages.map((msg) => (
+              {activeConv.messages.map((msg: ChatMsg) => (
                 <div key={msg.id} className={`flex items-end gap-2 ${msg.role === 'admin' ? 'flex-row-reverse' : ''}`}>
                   <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[11px] font-bold"
                     style={{ background: msg.role === 'admin' ? accent : '#94a3b8' }}>
@@ -2039,7 +2021,7 @@ function MensajesTab({ messages, setMessages, unreadCount, setUnreadCount, showT
                       style={msg.role === 'admin' ? { background: accent } : {}}>
                       {msg.text}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5 mx-1">{timeLabel(msg.createdAt)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 mx-1">{timeLabel(msg.timestamp)}</p>
                   </div>
                 </div>
               ))}
@@ -2093,41 +2075,41 @@ function ConsultasTab({ submissions, setSubmissions, setUnreadCount, showToast }
   const [selected, setSelected] = useState<ContactSubmission | null>(null);
   const [filterUnread, setFilterUnread] = useState(false);
 
-  const refresh = () => {
-    const all = getContactSubmissions();
+  const refresh = async () => {
+    const all = await getContactSubmissions();
     setSubmissions(all);
-    setUnreadCount(getUnreadContactCount());
+    setUnreadCount(await getUnreadContactCount());
   };
 
-  const handleMarkRead = (id: string) => {
-    markContactRead(id);
-    refresh();
+  const handleMarkRead = async (id: string) => {
+    await markContactRead(id);
+    await refresh();
   };
 
-  const handleMarkAllRead = () => {
-    markAllContactRead();
-    refresh();
+  const handleMarkAllRead = async () => {
+    await markAllContactRead();
+    await refresh();
     showToast('Todas las consultas marcadas como leídas');
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta consulta?')) return;
-    deleteContactSubmission(id);
-    refresh();
+    await deleteContactSubmission(id);
+    await refresh();
     if (selected?.id === id) setSelected(null);
     showToast('Consulta eliminada');
   };
 
-  const handleOpen = (s: ContactSubmission) => {
+  const handleOpen = async (s: ContactSubmission) => {
     setSelected(s);
-    if (!s.read) {
-      markContactRead(s.id);
-      refresh();
+    if (!s.isRead) {
+      await markContactRead(s.id);
+      await refresh();
     }
   };
 
-  const displayed = filterUnread ? submissions.filter((s) => !s.read) : submissions;
-  const unread = submissions.filter((s) => !s.read).length;
+  const displayed = filterUnread ? submissions.filter((s) => !s.isRead) : submissions;
+  const unread = submissions.filter((s) => !s.isRead).length;
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -2141,22 +2123,22 @@ function ConsultasTab({ submissions, setSubmissions, setUnreadCount, showToast }
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
           </button>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{selected.fullName}</h1>
+            <h1 className="text-xl font-bold text-slate-900">{selected.name}</h1>
             <p className="text-sm text-slate-400">Consulta sobre {selected.projectName}</p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 text-sm">
           <div className="grid grid-cols-2 gap-4">
-            <div><p className="text-xs text-slate-400">Nombre</p><p className="font-semibold text-slate-900">{selected.fullName}</p></div>
+            <div><p className="text-xs text-slate-400">Nombre</p><p className="font-semibold text-slate-900">{selected.name}</p></div>
             <div><p className="text-xs text-slate-400">Email</p><p className="font-semibold text-slate-800">{selected.email}</p></div>
             <div><p className="text-xs text-slate-400">Celular</p><p className="font-semibold text-slate-800">{selected.phone}</p></div>
             <div><p className="text-xs text-slate-400">Proyecto</p>
-              <a href={`/proyecto/${selected.projectSlug}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#0098dc] hover:underline">{selected.projectName}</a>
+              <span className="font-semibold text-[#0098dc]">{selected.projectName}</span>
             </div>
             <div><p className="text-xs text-slate-400">Fecha</p><p className="text-slate-600">{formatDate(selected.createdAt)}</p></div>
             <div><p className="text-xs text-slate-400">Estado</p>
-              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${selected.read ? 'bg-slate-100 text-slate-500' : 'bg-orange-100 text-orange-600'}`}>
-                {selected.read ? 'Leída' : 'No leída'}
+              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${selected.isRead ? 'bg-slate-100 text-slate-500' : 'bg-orange-100 text-orange-600'}`}>
+                {selected.isRead ? 'Leída' : 'No leída'}
               </span>
             </div>
           </div>
@@ -2166,14 +2148,14 @@ function ConsultasTab({ submissions, setSubmissions, setUnreadCount, showToast }
           </div>
           <div className="flex gap-2 pt-2">
             <a
-              href={`mailto:${selected.email}?subject=Tu consulta sobre ${selected.projectName}&body=Hola ${selected.fullName},%0D%0A%0D%0AGracias por tu interés en ${selected.projectName}.`}
+              href={`mailto:${selected.email}?subject=Tu consulta sobre ${selected.projectName}&body=Hola ${selected.name},%0D%0A%0D%0AGracias por tu interés en ${selected.projectName}.`}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#0098dc] hover:bg-[#0079b2] text-white font-bold rounded-xl text-sm shadow transition-all"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
               Responder por email
             </a>
             <a
-              href={`https://wa.me/${selected.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${selected.fullName}, gracias por tu interés en ${selected.projectName}. Estoy para ayudarte.`)}`}
+              href={`https://wa.me/${(selected.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(`Hola ${selected.name}, gracias por tu interés en ${selected.projectName}. Estoy para ayudarte.`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold rounded-xl text-sm shadow transition-all"
@@ -2238,7 +2220,7 @@ function ConsultasTab({ submissions, setSubmissions, setUnreadCount, showToast }
           <p className="font-semibold text-slate-600">
             {filterUnread ? 'No hay consultas sin leer' : 'Aún no hay consultas'}
           </p>
-          <p className="text-sm mt-1">Aparecerán aquí cuando alguien use el botón "Contactar" en los proyectos.</p>
+          <p className="text-sm mt-1">Aparecerán aquí cuando alguien use el botón &quot;Contactar&quot; en los proyectos.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -2258,20 +2240,20 @@ function ConsultasTab({ submissions, setSubmissions, setUnreadCount, showToast }
               {displayed.map((s) => (
                 <tr
                   key={s.id}
-                  className={`cursor-pointer hover:bg-slate-50/50 transition-colors ${!s.read ? 'bg-orange-50/40' : ''}`}
+                  className={`cursor-pointer hover:bg-slate-50/50 transition-colors ${!s.isRead ? 'bg-orange-50/40' : ''}`}
                   onClick={() => handleOpen(s)}
                 >
                   <td className="px-4 py-3">
-                    {!s.read && <span className="w-2 h-2 rounded-full bg-orange-500 block" />}
+                    {!s.isRead && <span className="w-2 h-2 rounded-full bg-orange-500 block" />}
                   </td>
-                  <td className={`px-4 py-3 ${!s.read ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>{s.fullName}</td>
+                  <td className={`px-4 py-3 ${!s.isRead ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>{s.name}</td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{s.email}</td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{s.phone}</td>
                   <td className="px-4 py-3 text-[#0098dc] font-medium text-xs">{s.projectName}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{formatDate(s.createdAt)}</td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      {!s.read && (
+                      {!s.isRead && (
                         <button
                           onClick={() => handleMarkRead(s.id)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all"
@@ -2318,42 +2300,42 @@ function FeriaRegistrosTab({ registros, setRegistros, setUnreadCount, showToast 
   const [filterUnread, setFilterUnread] = useState(false);
   const [filterInterest, setFilterInterest] = useState('');
 
-  const refresh = () => {
-    setRegistros(getFeriaRegistros());
-    setUnreadCount(getUnreadFeriaCount());
+  const refresh = async () => {
+    setRegistros(await getFeriaRegistros());
+    setUnreadCount(await getUnreadFeriaCount());
   };
 
-  const handleMarkAll = () => {
-    markAllFeriaRead();
-    refresh();
+  const handleMarkAll = async () => {
+    await markAllFeriaRead();
+    await refresh();
     showToast('Todos los registros marcados como leídos');
   };
 
-  const handleDelete = (id: string) => {
-    deleteFeriaRegistro(id);
-    refresh();
+  const handleDelete = async (id: string) => {
+    await deleteFeriaRegistro(id);
+    await refresh();
     showToast('Registro eliminado');
   };
 
-  const handleMarkRead = (id: string) => {
-    markFeriaRegistroRead(id);
-    refresh();
+  const handleMarkRead = async (id: string) => {
+    await markFeriaRegistroRead(id);
+    await refresh();
   };
 
   const filtered = registros.filter((r) => {
-    if (filterUnread && r.read) return false;
-    if (filterInterest && r.interest !== filterInterest) return false;
+    if (filterUnread && r.isRead) return false;
+    if (filterInterest && r.interes !== filterInterest) return false;
     return true;
   });
 
-  const unread = registros.filter((r) => !r.read).length;
+  const unread = registros.filter((r) => !r.isRead).length;
 
   // Export CSV
   const handleExport = () => {
     const headers = ['Nombre', 'Email', 'Teléfono', 'Interés', 'Fecha'];
     const rows = registros.map((r) => [
-      r.name, r.email, r.phone,
-      INTEREST_LABELS[r.interest] ?? r.interest,
+      r.nombre, r.email, r.telefono,
+      INTEREST_LABELS[r.interes ?? ''] ?? r.interes,
       new Date(r.createdAt).toLocaleString('es-PE'),
     ]);
     const csv = [headers, ...rows].map((row) => row.map((v) => `"${v}"`).join(',')).join('\n');
@@ -2398,7 +2380,7 @@ function FeriaRegistrosTab({ registros, setRegistros, setUnreadCount, showToast 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {Object.entries(INTEREST_LABELS).map(([key, label]) => {
-          const count = registros.filter((r) => r.interest === key).length;
+          const count = registros.filter((r) => r.interes === key).length;
           return (
             <div key={key} className="bg-white rounded-xl border border-slate-200 p-4 text-center shadow-sm">
               <p className="text-2xl font-black text-slate-900">{count}</p>
@@ -2453,24 +2435,24 @@ function FeriaRegistrosTab({ registros, setRegistros, setUnreadCount, showToast 
               {filtered.map((r) => (
                 <tr
                   key={r.id}
-                  onClick={() => { if (!r.read) { handleMarkRead(r.id); } }}
-                  className={`transition-colors ${!r.read ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-slate-50'} cursor-default`}
+                  onClick={() => { if (!r.isRead) { handleMarkRead(r.id); } }}
+                  className={`transition-colors ${!r.isRead ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-slate-50'} cursor-default`}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      {!r.read && <span className="w-2 h-2 rounded-full bg-[#0098dc] flex-shrink-0" />}
-                      <span className={`font-medium text-slate-900 ${!r.read ? 'font-semibold' : ''}`}>{r.name}</span>
+                      {!r.isRead && <span className="w-2 h-2 rounded-full bg-[#0098dc] flex-shrink-0" />}
+                      <span className={`font-medium text-slate-900 ${!r.isRead ? 'font-semibold' : ''}`}>{r.nombre}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs text-slate-600 space-y-0.5">
                       <div>{r.email}</div>
-                      <div className="text-slate-400">{r.phone}</div>
+                      <div className="text-slate-400">{r.telefono}</div>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary-50 text-primary-700">
-                      {INTEREST_LABELS[r.interest] ?? r.interest}
+                      {INTEREST_LABELS[r.interes ?? ''] ?? r.interes}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">
@@ -2487,7 +2469,7 @@ function FeriaRegistrosTab({ registros, setRegistros, setUnreadCount, showToast 
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
                       </a>
                       <a
-                        href={`https://wa.me/${r.phone.replace(/\D/g, '')}`}
+                        href={`https://wa.me/${r.telefono.replace(/\D/g, '')}`}
                         target="_blank" rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"

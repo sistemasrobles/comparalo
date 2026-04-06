@@ -1,15 +1,6 @@
 // ============================================================
-// useAdminProjects — hook reactivo que sincroniza los datos
-// del admin-store en TIEMPO REAL en cualquier página/componente.
-//
-// Cómo funciona:
-//   1. Al montar, lee los proyectos desde localStorage (admin-store).
-//   2. Escucha el evento nativo "storage" del browser: se dispara
-//      automáticamente cuando CUALQUIER otra pestaña escribe en
-//      localStorage, por ejemplo cuando el admin guarda un cambio
-//      (nombre, descripción, precio, moneda, imagen, etc.).
-//   3. También re-sincroniza cada vez que la ventana recupera el
-//      foco (el usuario vuelve a la pestaña después de editar).
+// useAdminProjects — hook que carga proyectos desde Supabase
+// vía la API route /api/db/projects.
 //
 // Uso:
 //   const projects = useAdminProjects();         // todos los activos
@@ -22,38 +13,26 @@ import { useState, useEffect } from 'react';
 import { getAdminProjects } from '@/lib/admin-store';
 import type { ProjectData } from '@/lib/projects-data';
 
-const PROJECTS_KEY = 'peruinversion_admin_projects';
-
 export function useAdminProjects(onlyActive = true): ProjectData[] {
-  // Siempre iniciar con [] para que servidor y cliente coincidan
-  // en la primera render y no haya hydration mismatch.
-  // El useEffect carga los datos reales justo después del montaje.
   const [projects, setProjects] = useState<ProjectData[]>([]);
 
   useEffect(() => {
-    // Carga inicial en cliente
-    const load = () => {
-      const all = getAdminProjects();
-      setProjects(onlyActive ? all.filter((p) => p.isActive !== false) : all);
-    };
-
-    load(); // sincronizar inmediatamente al montar
-
-    // Escuchar cambios de OTRA pestaña (evento nativo del browser)
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === PROJECTS_KEY || e.key === null) {
-        load();
+    let cancelled = false;
+    const load = async () => {
+      const all = await getAdminProjects();
+      if (!cancelled) {
+        setProjects(onlyActive ? all.filter((p) => p.isActive !== false) : all);
       }
     };
 
-    // Escuchar cuando el usuario vuelve a esta pestaña
-    const handleFocus = () => load();
+    load();
 
-    window.addEventListener('storage', handleStorage);
+    // Re-cargar cuando el usuario vuelve a esta pestaña
+    const handleFocus = () => load();
     window.addEventListener('focus', handleFocus);
 
     return () => {
-      window.removeEventListener('storage', handleStorage);
+      cancelled = true;
       window.removeEventListener('focus', handleFocus);
     };
   }, [onlyActive]);

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getProjectAdBanners, type ProjectAdBanner } from '@/lib/admin-store';
 
-const AD_KEY = 'peruinversion_admin_ad_banners';
 const INTERVAL_MS = 4000; // tiempo entre slides
 
 export function ProjectAdBanners() {
@@ -16,16 +15,12 @@ export function ProjectAdBanners() {
 
   useEffect(() => {
     const load = () => {
-      const all = getProjectAdBanners();
-      setBanners(all.filter((b) => b.active).sort((a, b) => a.order - b.order));
-      setCurrent(0);
+      getProjectAdBanners().then((all) => {
+        setBanners(all.filter((b) => b.active).sort((a, b) => a.order - b.order));
+        setCurrent(0);
+      });
     };
     load();
-    const handler = (e: StorageEvent) => {
-      if (e.key === AD_KEY || e.key === null) load();
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
   }, []);
 
   // Avance automático

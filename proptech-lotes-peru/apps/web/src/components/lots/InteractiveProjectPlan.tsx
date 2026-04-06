@@ -63,8 +63,8 @@ const PALETTE: Record<LotStatus, { fill: string; fillHover: string; stroke: stri
   },
 };
 
-const SELECTED_FILL   = 'rgba(0,152,220,0.22)';
-const SELECTED_STROKE = '#0098dc';
+const SELECTED_FILL   = 'rgba(0,152,220,0.22)'; // eslint-disable-line @typescript-eslint/no-unused-vars
+const SELECTED_STROKE = '#0098dc'; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 /* ─────────────────────────────────────────────
    PROPS
@@ -211,7 +211,9 @@ export default function InteractiveProjectPlan({
     );
   }
 
-  const ar = planData.imageWidth && planData.imageHeight
+  // Aspect ratio reserved for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _ar = planData.imageWidth && planData.imageHeight
     ? planData.imageWidth / planData.imageHeight
     : 16 / 9;
 

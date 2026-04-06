@@ -1,64 +1,71 @@
-// ── Feria PerúInversión — Store de registros ──────────────────────────────
+// ============================================
+// FERIA STORE — Supabase via API routes
+// ============================================
 
-export const FERIA_STORE_KEY = 'peruinversion_feria_registros';
+export const FERIA_STORE_KEY = 'peruinversion_feria_registros'; // kept for legacy reference only
 
 export interface FeriaRegistro {
   id: string;
-  name: string;
+  nombre: string;
   email: string;
-  phone: string;
-  interest: string; // 'lotes' | 'departamentos' | 'inversion' | 'otro'
-  createdAt: string; // ISO
-  read: boolean;
+  telefono: string;
+  ciudad?: string;
+  presupuesto?: string;
+  interes?: string;
+  comoConocio?: string;
+  isRead: boolean;
+  createdAt: string;
 }
 
-// ── Utilidad ──────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
 
 function generateId(): string {
-  return `feria_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `feria_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
-// ── CRUD ──────────────────────────────────────────────────────────────────
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 
-export function getFeriaRegistros(): FeriaRegistro[] {
-  if (typeof window === 'undefined') return [];
+// ── Public API ────────────────────────────────────────────────
+
+export async function getFeriaRegistros(): Promise<FeriaRegistro[]> {
   try {
-    const raw = localStorage.getItem(FERIA_STORE_KEY);
-    return raw ? (JSON.parse(raw) as FeriaRegistro[]) : [];
+    return await apiFetch<FeriaRegistro[]>('/api/db/feria-registros');
   } catch {
     return [];
   }
 }
 
-export function saveFeriaRegistro(data: Omit<FeriaRegistro, 'id' | 'createdAt' | 'read'>): FeriaRegistro {
-  const registros = getFeriaRegistros();
-  const nuevo: FeriaRegistro = {
-    id: generateId(),
+export async function saveFeriaRegistro(data: Omit<FeriaRegistro, 'id' | 'isRead' | 'createdAt'>): Promise<FeriaRegistro> {
+  const registro: FeriaRegistro = {
     ...data,
+    id: generateId(),
+    isRead: false,
     createdAt: new Date().toISOString(),
-    read: false,
   };
-  localStorage.setItem(FERIA_STORE_KEY, JSON.stringify([nuevo, ...registros]));
-  return nuevo;
+  return apiFetch<FeriaRegistro>('/api/db/feria-registros', { method: 'POST', body: JSON.stringify(registro) });
 }
 
-export function markFeriaRegistroRead(id: string): void {
-  const registros = getFeriaRegistros().map((r) =>
-    r.id === id ? { ...r, read: true } : r,
-  );
-  localStorage.setItem(FERIA_STORE_KEY, JSON.stringify(registros));
+export async function markFeriaRegistroRead(id: string): Promise<void> {
+  await apiFetch('/api/db/feria-registros', { method: 'PATCH', body: JSON.stringify({ id }) });
 }
 
-export function markAllFeriaRead(): void {
-  const registros = getFeriaRegistros().map((r) => ({ ...r, read: true }));
-  localStorage.setItem(FERIA_STORE_KEY, JSON.stringify(registros));
+export async function markAllFeriaRead(): Promise<void> {
+  await apiFetch('/api/db/feria-registros', { method: 'PATCH', body: JSON.stringify({ all: true }) });
 }
 
-export function deleteFeriaRegistro(id: string): void {
-  const registros = getFeriaRegistros().filter((r) => r.id !== id);
-  localStorage.setItem(FERIA_STORE_KEY, JSON.stringify(registros));
+export async function deleteFeriaRegistro(id: string): Promise<void> {
+  await apiFetch(`/api/db/feria-registros?id=${id}`, { method: 'DELETE' });
 }
 
-export function getUnreadFeriaCount(): number {
-  return getFeriaRegistros().filter((r) => !r.read).length;
+export async function getUnreadFeriaCount(): Promise<number> {
+  try {
+    const registros = await getFeriaRegistros();
+    return registros.filter((r) => !r.isRead).length;
+  } catch {
+    return 0;
+  }
 }

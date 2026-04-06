@@ -84,9 +84,11 @@ export default function ManualPlanMapper({ project, onUpdate, showToast }: Manua
 
   /* ── reload ── */
   const reload = useCallback(() => {
-    const fresh = getAdminProjects().find(p => p.id === project.id);
-    setPlanData(fresh?.planData);
-    setShapes(getLotShapes(project.id));
+    getAdminProjects().then((projects) => {
+      const fresh = projects.find(p => p.id === project.id);
+      setPlanData(fresh?.planData);
+    });
+    getLotShapes(project.id).then(setShapes);
   }, [project.id]);
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { setVb({ x: 0, y: 0, w: imgW, h: imgH }); }, [imgW, imgH]);

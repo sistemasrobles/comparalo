@@ -1,18 +1,17 @@
 // ============================================
-// STORE DE RESERVAS - localStorage
-// En producción esto sería una base de datos
+// RESERVATIONS STORE — Supabase via API routes
 // ============================================
 
 export type ReservationStatus = 'pendiente' | 'aprobada' | 'rechazada';
 
 export interface ReservationDocument {
   id: string;
-  name: string;           // e.g. "Contrato de compraventa"
+  name: string;
   description?: string;
   fileType: 'pdf' | 'image' | 'other';
-  fileUrl: string;        // base64 data URL or URL
-  uploadedAt: string;     // ISO date
-  uploadedBy: string;     // "Asesor", etc.
+  fileUrl: string;
+  uploadedAt: string;
+  uploadedBy: string;
 }
 
 export interface ReservationTimelineEvent {
@@ -20,13 +19,13 @@ export interface ReservationTimelineEvent {
   type: 'created' | 'approved' | 'rejected' | 'document' | 'note';
   title: string;
   description?: string;
-  date: string;           // ISO date
+  date: string;
   by?: string;
 }
 
 export interface Reservation {
   id: string;
-  code: string;             // Código de seguimiento: RES-XXXXX
+  code: string;
   projectId: string;
   projectName: string;
   lotId: string;
@@ -34,210 +33,158 @@ export interface Reservation {
   lotArea: number;
   lotPrice: number;
   reservationAmount: number;
-  // Moneda del proyecto al momento de la reserva (se guarda para mostrar correctamente en el panel)
   currency?: 'PEN' | 'USD';
-  // Cliente
   clientName: string;
   clientDni: string;
   clientEmail: string;
   clientPhone: string;
-  // Pago
   paymentMethod: 'yape' | 'plin' | 'transferencia' | 'otro';
   purchaseType?: 'financiado' | 'contado';
-  voucherImage: string;     // base64 data URL
-  // Plan de pago
-  initialPayment?: number;       // Cuota inicial elegida
-  termMonths?: number;           // Plazo en meses (solo financiado)
-  monthlyPayment?: number;       // Cuota mensual estimada (solo financiado)
-  selectedPrize?: string;        // ID del premio elegido (solo contado)
-  selectedPrizeLabel?: string;   // Nombre del premio elegido (solo contado)
-  // Estado
+  voucherImage: string;
+  initialPayment?: number;
+  termMonths?: number;
+  monthlyPayment?: number;
+  selectedPrize?: string;
+  selectedPrizeLabel?: string;
   status: ReservationStatus;
-  createdAt: string;        // ISO date
+  createdAt: string;
   reviewedAt?: string;
   reviewedBy?: string;
   rejectionReason?: string;
   notes?: string;
-  // Documentos y timeline
   documents?: ReservationDocument[];
   timeline?: ReservationTimelineEvent[];
 }
 
-const STORAGE_KEY = 'peruinversion_reservations';
+// ── Helpers ──────────────────────────────────────────────────
 
 function generateCode(): string {
-  const num = Math.floor(10000 + Math.random() * 90000);
-  return `RES-${num}`;
+  return `RES-${Math.floor(10000 + Math.random() * 90000)}`;
 }
 
 function generateId(): string {
   return `res_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
-export function getAllReservations(): Reservation[] {
-  if (typeof window === 'undefined') return [];
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── Public API ────────────────────────────────────────────────
+
+export async function getAllReservations(): Promise<Reservation[]> {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    return await apiFetch<Reservation[]>('/api/db/reservations');
   } catch {
     return [];
   }
 }
 
-export function getReservationByCode(code: string): Reservation | undefined {
-  return getAllReservations().find((r) => r.code === code);
+export async function getReservationByCode(code: string): Promise<Reservation | null> {
+  const all = await getAllReservations();
+  return all.find((r) => r.code === code) ?? null;
 }
 
-export function getReservationsByProject(projectId: string): Reservation[] {
-  return getAllReservations().filter((r) => r.projectId === projectId);
-}
-
-export function getReservationsByStatus(status: ReservationStatus): Reservation[] {
-  return getAllReservations().filter((r) => r.status === status);
-}
-
-export function createReservation(data: Omit<Reservation, 'id' | 'code' | 'status' | 'createdAt'>): Reservation {
+export async function createReservation(data: Omit<Reservation, 'id' | 'code' | 'createdAt'>): Promise<Reservation> {
   const reservation: Reservation = {
     ...data,
     id: generateId(),
     code: generateCode(),
-    status: 'pendiente',
     createdAt: new Date().toISOString(),
+    timeline: [{ id: `tl_${Date.now()}`, type: 'created', title: 'Reserva creada', date: new Date().toISOString() }],
   };
-  const all = getAllReservations();
-  all.push(reservation);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  return reservation;
+  return apiFetch<Reservation>('/api/db/reservations', { method: 'POST', body: JSON.stringify(reservation) });
 }
 
-export function updateReservationStatus(
+export async function updateReservationStatus(
   id: string,
   status: ReservationStatus,
-  reviewedBy?: string,
-  rejectionReason?: string,
-  notes?: string
-): Reservation | null {
-  const all = getAllReservations();
-  const index = all.findIndex((r) => r.id === id);
-  if (index === -1) return null;
-  
-  all[index] = {
-    ...all[index],
+  opts?: { reviewedBy?: string; rejectionReason?: string; notes?: string }
+): Promise<Reservation | null> {
+  const patch = {
     status,
     reviewedAt: new Date().toISOString(),
-    reviewedBy,
-    rejectionReason,
-    notes,
+    ...(opts?.reviewedBy ? { reviewedBy: opts.reviewedBy } : {}),
+    ...(opts?.rejectionReason ? { rejectionReason: opts.rejectionReason } : {}),
+    ...(opts?.notes ? { notes: opts.notes } : {}),
   };
-  
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  return all[index];
+  try {
+    return await apiFetch<Reservation>(`/api/db/reservations/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+  } catch {
+    return null;
+  }
 }
 
-export function deleteReservation(id: string): boolean {
-  const all = getAllReservations();
-  const filtered = all.filter((r) => r.id !== id);
-  if (filtered.length === all.length) return false;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-  return true;
+export async function updateReservation(id: string, patch: Partial<Reservation>): Promise<Reservation | null> {
+  try {
+    return await apiFetch<Reservation>(`/api/db/reservations/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
+  } catch {
+    return null;
+  }
 }
 
-export function getReservationStats() {
-  const all = getAllReservations();
+export async function deleteReservation(id: string): Promise<boolean> {
+  try {
+    await apiFetch(`/api/db/reservations/${id}`, { method: 'DELETE' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getReservationStats() {
+  const all = await getAllReservations();
   return {
     total: all.length,
     pendientes: all.filter((r) => r.status === 'pendiente').length,
     aprobadas: all.filter((r) => r.status === 'aprobada').length,
     rechazadas: all.filter((r) => r.status === 'rechazada').length,
-    totalAmount: all.filter((r) => r.status === 'aprobada').reduce((sum, r) => sum + r.reservationAmount, 0),
+    totalAmount: all.filter((r) => r.status === 'aprobada').reduce((sum, r) => sum + (r.reservationAmount || 0), 0),
   };
 }
 
-// ── Documentos ──
-
-export function addDocumentToReservation(
-  reservationId: string,
-  doc: Omit<ReservationDocument, 'id' | 'uploadedAt'>
-): Reservation | null {
-  const all = getAllReservations();
-  const index = all.findIndex((r) => r.id === reservationId);
-  if (index === -1) return null;
-
-  const newDoc: ReservationDocument = {
-    ...doc,
-    id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    uploadedAt: new Date().toISOString(),
-  };
-
-  if (!all[index].documents) all[index].documents = [];
-  all[index].documents!.push(newDoc);
-
-  // Add timeline event
-  if (!all[index].timeline) all[index].timeline = [];
-  all[index].timeline!.push({
-    id: `evt_${Date.now()}`,
-    type: 'document',
-    title: `Documento adjuntado: ${doc.name}`,
-    description: doc.description,
-    date: new Date().toISOString(),
-    by: doc.uploadedBy,
-  });
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  return all[index];
+export async function getReservationByCodeAndDni(code: string, dni: string): Promise<Reservation | null> {
+  const all = await getAllReservations();
+  return all.find((r) => r.code === code && r.clientDni === dni) ?? null;
 }
 
-export function removeDocumentFromReservation(
-  reservationId: string,
-  documentId: string
-): Reservation | null {
-  const all = getAllReservations();
-  const index = all.findIndex((r) => r.id === reservationId);
-  if (index === -1) return null;
-
-  all[index].documents = (all[index].documents || []).filter((d) => d.id !== documentId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  return all[index];
-}
-
-export function getReservationByCodeAndDni(code: string, dni: string): Reservation | undefined {
-  return getAllReservations().find((r) => r.code === code && r.clientDni === dni);
-}
-
-export function getReservationsByDni(dni: string): Reservation[] {
-  return getAllReservations().filter((r) => r.clientDni === dni);
+export async function getReservationsByDni(dni: string): Promise<Reservation[]> {
+  const all = await getAllReservations();
+  return all.filter((r) => r.clientDni === dni);
 }
 
 export function buildTimeline(reservation: Reservation): ReservationTimelineEvent[] {
-  const events: ReservationTimelineEvent[] = [];
-
-  // Creation event
-  events.push({
-    id: 'evt_created',
-    type: 'created',
-    title: 'Reserva registrada',
-    description: `Lote ${reservation.lotLabel} en ${reservation.projectName}`,
-    date: reservation.createdAt,
-  });
-
-  // Review event
-  if (reservation.reviewedAt) {
+  if (reservation.timeline && reservation.timeline.length > 0) return reservation.timeline;
+  const events: ReservationTimelineEvent[] = [
+    {
+      id: `tl_created_${reservation.id}`,
+      type: 'created',
+      title: 'Reserva creada',
+      description: `Reserva del lote ${reservation.lotLabel} en ${reservation.projectName}`,
+      date: reservation.createdAt,
+    },
+  ];
+  if (reservation.status === 'aprobada' && reservation.reviewedAt) {
     events.push({
-      id: 'evt_reviewed',
-      type: reservation.status === 'aprobada' ? 'approved' : 'rejected',
-      title: reservation.status === 'aprobada' ? 'Reserva aprobada' : 'Reserva rechazada',
-      description: reservation.status === 'rechazada' ? reservation.rejectionReason : 'Tu comprobante fue verificado correctamente',
+      id: `tl_approved_${reservation.id}`,
+      type: 'approved',
+      title: 'Reserva aprobada',
+      description: reservation.notes,
       date: reservation.reviewedAt,
       by: reservation.reviewedBy,
     });
   }
-
-  // Document events from timeline
-  if (reservation.timeline) {
-    events.push(...reservation.timeline.filter((e) => e.type === 'document'));
+  if (reservation.status === 'rechazada' && reservation.reviewedAt) {
+    events.push({
+      id: `tl_rejected_${reservation.id}`,
+      type: 'rejected',
+      title: 'Reserva rechazada',
+      description: reservation.rejectionReason,
+      date: reservation.reviewedAt,
+      by: reservation.reviewedBy,
+    });
   }
-
-  // Sort by date
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return events;
 }

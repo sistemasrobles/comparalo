@@ -92,6 +92,7 @@ export default function InteractiveLotMap({
   calcMonthly,
 }: InteractiveLotMapProps) {
   /* ── Currency helper — uses project currency so admin changes propagate here ── */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fmt = (price: number) => formatPrice(price, project.currency ?? 'PEN');
 
   /* ── State ── */
@@ -133,17 +134,19 @@ export default function InteractiveLotMap({
 
   // Load approved lot shapes + generated layout (public sources of truth)
   useEffect(() => {
-    // Priority 1: approved GeneratedLayout → CineplanView
-    const layout = getGeneratedLayout(project.id);
-    if (layout?.status === 'approved') {
-      setGeneratedLayout(layout);
-      setViewMode('plan');
-      return;
-    }
-    // Priority 2: LotShapes (polygon overlay on plan photo)
-    const shapes = getLotShapes(project.id);
-    setLotShapes(shapes);
-    if (shapes.length > 0) setViewMode('plan');
+    getGeneratedLayout(project.id).then((layout) => {
+      // Priority 1: approved GeneratedLayout → CineplanView
+      if (layout?.status === 'approved') {
+        setGeneratedLayout(layout);
+        setViewMode('plan');
+        return;
+      }
+      // Priority 2: LotShapes (polygon overlay on plan photo)
+      getLotShapes(project.id).then((shapes) => {
+        setLotShapes(shapes);
+        if (shapes.length > 0) setViewMode('plan');
+      });
+    });
   }, [project.id]);
 
   const stats = useMemo(() => {

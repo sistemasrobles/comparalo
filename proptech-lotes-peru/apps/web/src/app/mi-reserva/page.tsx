@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getReservationByCode, type Reservation } from '@/lib/reservations-store';
@@ -10,17 +10,24 @@ function MiReservaContent() {
   const searchParams = useSearchParams();
   const initialCode = searchParams.get('code') || '';
   const [code, setCode] = useState(initialCode);
-  const [reservation, setReservation] = useState<Reservation | null>(
-    initialCode ? getReservationByCode(initialCode) || null : null
-  );
+  const [reservation, setReservation] = useState<Reservation | null>(null);
   const [searched, setSearched] = useState(!!initialCode);
-  const [notFound, setNotFound] = useState(initialCode ? !getReservationByCode(initialCode) : false);
+  const [notFound, setNotFound] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (initialCode) {
+      getReservationByCode(initialCode).then((found) => {
+        setReservation(found);
+        setNotFound(!found);
+      });
+    }
+  }, [initialCode]);
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) return;
-    const found = getReservationByCode(trimmed);
+    const found = await getReservationByCode(trimmed);
     setReservation(found || null);
     setNotFound(!found);
     setSearched(true);

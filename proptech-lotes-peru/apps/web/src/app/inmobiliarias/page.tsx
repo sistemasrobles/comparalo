@@ -419,9 +419,8 @@ function PublishModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setLoading(true);
     saveContactSubmission({
-      projectSlug: '__publicar__',
       projectName: 'Solicitud: Publicar proyectos',
-      fullName: form.fullName,
+      name: form.fullName,
       email: form.email,
       phone: form.phone,
       message: `Empresa: ${form.company}\n\n${form.message}`,
