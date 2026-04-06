@@ -4,20 +4,25 @@ import { v2 as cloudinary } from 'cloudinary';
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
-cloudinary.config({
+
+
+export async function POST(req: NextRequest) {
+  
+  cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-export async function POST(req: NextRequest) {
-  try {
 
     console.log('Cloudinary config:', {
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY ? 'OK' : 'MISSING',
       api_secret: process.env.CLOUDINARY_API_SECRET ? 'OK' : 'MISSING',
     });
+  
+  try {
+
+    
 
 
     const formData = await req.formData();
